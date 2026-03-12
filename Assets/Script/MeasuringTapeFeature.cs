@@ -4,6 +4,8 @@ using System.Runtime.CompilerServices;
 using LearnXR.Core.Utilities;
 using TMPro;
 using UnityEngine;
+using System.Text;
+using System.IO;
 
 public class MeasuringTapeFeature : MonoBehaviour
 {
@@ -21,7 +23,8 @@ public class MeasuringTapeFeature : MonoBehaviour
     [SerializeField] private GameObject rightControllerTapeArea;
     [SerializeField] private string measurementFormat = "<mark=#0000005A padding=\"20,20,10,10\"><color=white>{0}</color></mark>";
     [SerializeField] private float measurementInfoLength = 0.01f;
-    
+    [SerializeField] private TextMeshPro statusText;
+
     private List<MeasuringTape> savedTapelines = new();
     private TextMeshPro lastMeasurementInfo;
     private LineRenderer lastTapeLineRenderer;
@@ -82,6 +85,28 @@ public class MeasuringTapeFeature : MonoBehaviour
     private void HandleUpAction(Transform TapeArea)
     {
         AttachAndDetachMeasurementInfo(TapeArea, false);
+        var tape = savedTapelines[savedTapelines.Count - 1];
+
+        LabelSelectionManager.Instance.ShowPanel(
+            (label) => AssignLabel(tape, label)
+        );
+    }
+
+    private void AssignLabel(MeasuringTape tape, string label)
+    {
+        tape.Label = label;
+
+        var lineRenderer = tape.TapeLine.GetComponent<LineRenderer>();
+
+        var distance = Vector3.Distance(
+            lineRenderer.GetPosition(0),
+            lineRenderer.GetPosition(1));
+
+        var inches = MeasuringTape.MetersToInches(distance);
+        var centimeters = MeasuringTape.MetersTocentemeters(distance);
+
+        tape.TapeInfo.text =
+            $"{label}\n{inches:F2}\" ({centimeters:F2}cm)";
     }
 
     private void CreateNewTapeLine(Vector3 initialPosition) {
@@ -117,17 +142,42 @@ public class MeasuringTapeFeature : MonoBehaviour
             var lineDirection = (lastTapeLineRenderer.GetPosition(0) - lastTapeLineRenderer.GetPosition(1));
             Vector3 lineCrossProduct  = Vector3.Cross(lineDirection, Vector3.up);
             Vector3 lineMidPoint = (lastTapeLineRenderer.GetPosition(0) + lastTapeLineRenderer.GetPosition(1)) / 2;
-            lastMeasurementInfo.transform.position = lineMidPoint + (lineCrossProduct.normalized * measurementInfoLength);
+            lastMeasurementInfo.transform.position = lineMidPoint + (2 * lineCrossProduct.normalized * measurementInfoLength);
 
         }
     }
 
-    private void CalculateMeasurements() {
+    private void CalculateMeasurements2() {
         var distance = Vector3.Distance(lastTapeLineRenderer.GetPosition(0), lastTapeLineRenderer.GetPosition(1));
         var inches = MeasuringTape.MetersToInches(distance);
         var centimeters = MeasuringTape.MetersTocentemeters(distance);
         var lastLineMeasuringTape = savedTapelines[savedTapelines.Count-1];
         lastLineMeasuringTape.TapeInfo.text = string.Format(measurementFormat, $"{inches:F2} <i>{centimeters:F2}cm</i>");
+    }
+
+    private void CalculateMeasurements()
+    {
+        Vector3 start = lastTapeLineRenderer.GetPosition(0);
+        Vector3 end = lastTapeLineRenderer.GetPosition(1);
+
+        float distance = Vector3.Distance(start, end);
+
+        var inches = MeasuringTape.MetersToInches(distance);
+        var centimeters = MeasuringTape.MetersTocentemeters(distance);
+
+        // Direction of the line
+        Vector3 direction = (end - start).normalized;
+
+        // Angle with world axes
+        float xAngle = Vector3.Angle(direction, Vector3.right);
+        float yAngle = Vector3.Angle(direction, Vector3.up);
+        float zAngle = Vector3.Angle(direction, Vector3.forward);
+
+        var lastLineMeasuringTape = savedTapelines[savedTapelines.Count - 1];
+
+        lastLineMeasuringTape.TapeInfo.text =
+            $"{inches:F2}\" <i>{centimeters:F2}cm</i>\n" +
+            $"X: {xAngle:F1}°  Y: {yAngle:F1}°  Z: {zAngle:F1}°";
     }
 
     private void OnDestroy()
@@ -136,5 +186,54 @@ public class MeasuringTapeFeature : MonoBehaviour
             Destroy(tapeLine.TapeLine);
         }
         savedTapelines.Clear();
+    }
+
+    public void ExportMeasurementsToCSV()
+    {
+        if (savedTapelines.Count == 0)
+        {
+            Debug.Log("ExportMeasurementsToCSV : No measurements to export.");
+            return;
+        }
+
+        StringBuilder csv = new StringBuilder();
+
+        // Header
+        csv.AppendLine("Label,DistanceMeters,DistanceInches,DistanceCentimeters");
+
+        foreach (var tape in savedTapelines)
+        {
+            var lineRenderer = tape.TapeLine.GetComponent<LineRenderer>();
+
+            float distanceMeters = Vector3.Distance(
+                lineRenderer.GetPosition(0),
+                lineRenderer.GetPosition(1)
+            );
+
+            double inches = MeasuringTape.MetersToInches(distanceMeters);
+            double centimeters = MeasuringTape.MetersTocentemeters(distanceMeters);
+
+            string label = string.IsNullOrEmpty(tape.Label) ? "Unnamed" : tape.Label;
+
+            csv.AppendLine($"{label},{distanceMeters:F3},{inches:F2},{centimeters:F2}");
+        }
+
+        string fileName = "XR_Measurements_" + System.DateTime.Now.ToString("yyyyMMdd_HHmmss") + ".csv";
+
+        string path = Path.Combine(Application.persistentDataPath, fileName);
+
+        File.WriteAllText(path, csv.ToString());
+
+        Debug.Log($"ExportMeasurementsToCSV : CSV exported successfully to: {path}");
+        StartCoroutine(ShowStatusMessage($"Measurements exported"));
+    }
+
+    IEnumerator ShowStatusMessage(string message, float duration = 2f)
+    {
+        if (statusText == null) yield break;
+        statusText.text = message;
+        statusText.gameObject.SetActive(true);
+        yield return new WaitForSeconds(duration);
+        statusText.gameObject.SetActive(false);
     }
 }
