@@ -19,23 +19,23 @@ public class LevelerFeature : MonoBehaviour
         levelerDefaultColor = levelerOuterRenderer.material.color;
     }
 
-    // Event function
-    //void Update()
-    //{
-    //    Vector3 objectUp = transform.up;
-    //    Vector3 worldUp = Vector3.up;
+    Event function
+    void Update2()
+    {
+        Vector3 objectUp = transform.up;
+        Vector3 worldUp = Vector3.up;
 
-    //    int angle = Mathf.RoundToInt(Vector3.Angle(objectUp, worldUp));
+        int angle = Mathf.RoundToInt(Vector3.Angle(objectUp, worldUp));
 
-    //    Vector3 crossProduct = Vector3.Cross(worldUp, objectUp);
-    //    if (crossProduct.z > 0)
-    //        angle = -angle;
+        Vector3 crossProduct = Vector3.Cross(worldUp, objectUp);
+        if (crossProduct.z > 0)
+            angle = -angle;
 
-    //    levelerReadingText.text = $"{angle:F0}°";
+        levelerReadingText.text = $"{angle:F0}°";
 
-    //    levelerOuterRenderer.material.color =
-    //        Mathf.Abs(angle) <= levelerTolerance ? Color.green : levelerDefaultColor;
-    //}
+        levelerOuterRenderer.material.color =
+            Mathf.Abs(angle) <= levelerTolerance ? Color.green : levelerDefaultColor;
+    }
 
 
     void Update()
